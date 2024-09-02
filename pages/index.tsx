@@ -84,7 +84,7 @@ export default function Home() {
 
     try {
       const { request } = await publicClient.simulateContract({
-        account: address,
+        account: address as `0x${string}`,
         address: CONTRACT_ADDRESS, 
         abi: ABI,
         functionName: "play",
