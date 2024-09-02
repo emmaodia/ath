@@ -88,7 +88,7 @@ export default function Home() {
         address: CONTRACT_ADDRESS, 
         abi: ABI,
         functionName: "play",
-        args: [parseInt(prediction, 10)], 
+        args: [BigInt(parseInt(prediction, 10))],
         value: parseEther(betAmount), 
       });
 
