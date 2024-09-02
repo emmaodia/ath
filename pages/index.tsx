@@ -30,7 +30,7 @@ export default function Home() {
     if (typeof window !== "undefined" && typeof window.ethereum !== "undefined") {
       try {
         // Request account access
-        await window.ethereum.request({ method: "eth_requestAccounts" });
+        await (window.ethereum as any).request({ method: "eth_requestAccounts" });
 
         // Create a wallet client using MetaMask
         const walletClient = createWalletClient({
