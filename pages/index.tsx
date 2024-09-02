@@ -27,7 +27,7 @@ export default function Home() {
   
   // Function to connect to MetaMask and create a wallet client
   const connectToMetaMask = async () => {
-    if (typeof window !== "undefined" && window.ethereum !== undefined) {
+    if (typeof window !== "undefined" && typeof window.ethereum !== "undefined") {
       try {
         // Request account access
         await window.ethereum.request({ method: "eth_requestAccounts" });
