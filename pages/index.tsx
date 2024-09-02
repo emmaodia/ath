@@ -1,19 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import {
   createPublicClient,
   http,
   parseEther,
   createWalletClient,
   custom,
-  formatEther
+  formatEther,
+  WalletClient,
+  PublicClient,
 } from "viem";
 import { lineaSepolia } from "viem/chains";
 import { ABI } from "../abi";
-
-const publicClient = createPublicClient({
-  chain: lineaSepolia,
-  transport: http(),
-});
 
 declare global {
   interface Window {
@@ -21,35 +18,35 @@ declare global {
   }
 }
 
-export default function Home() {
-  const [client, setClient] = useState(null);
-  const [address, setAddress] = useState(null);
-  const [connected, setConnected] = useState(false);
-  const [houseBalance, setHouseBalance] = useState(null);
-  const [prediction, setPrediction] = useState(""); // State to store user input for prediction
-  const [betAmount, setBetAmount] = useState(""); // State to store the amount to bet
-  const [transactionHash, setTransactionHash] = useState(""); // State to store the transaction hash
-  const [gameResult, setGameResult] = useState(""); // State to store game result
-  
-  // Function to connect to MetaMask and create a wallet client
-  const connectToMetaMask = async () => {
-    if (typeof window !== "undefined" && window.ethereum !== undefined) {
-      try {
-        // Request account access
-        await window.ethereum.request({ method: "eth_requestAccounts" });
+const CONTRACT_ADDRESS = "0x8fa509ab0087755fdd5fb49df1d5fad95f9d9eb7";
 
-        // Create a wallet client using MetaMask
+const publicClient: PublicClient = createPublicClient({
+  chain: lineaSepolia,
+  transport: http(),
+});
+
+export default function Home() {
+  const [client, setClient] = useState<WalletClient | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [houseBalance, setHouseBalance] = useState<string | null>(null);
+  const [prediction, setPrediction] = useState<string>(""); 
+  const [betAmount, setBetAmount] = useState<string>(""); 
+  const [transactionHash, setTransactionHash] = useState<string | null>(null); 
+  const [gameResult, setGameResult] = useState<string | null>(null); 
+
+  const connectToMetaMask = async () => {
+    if (typeof window !== "undefined" && window.ethereum) {
+      try {
+        await window.ethereum.request({ method: "eth_requestAccounts" });
         const walletClient = createWalletClient({
           chain: lineaSepolia,
-          transport: custom(window.ethereum as any),
+          transport: custom(window.ethereum),
         });
-
-        // Get the connected address
         const [userAddress] = await walletClient.getAddresses();
         setClient(walletClient);
         setAddress(userAddress);
         setConnected(true);
-        console.log("Connected account:", userAddress);
       } catch (error) {
         console.error("User denied account access:", error);
       }
@@ -61,19 +58,23 @@ export default function Home() {
   const fetchHouseBalance = async () => {
     try {
       const balance = await publicClient.readContract({
-        address: "0x8fa509ab0087755fdd5fb49df1d5fad95f9d9eb7", 
+        address: CONTRACT_ADDRESS, 
         abi: ABI,
         functionName: "houseBalance",
       });
 
-      setHouseBalance(formatEther(balance));
-      console.log("House Balance:", balance);
+      if (balance !== undefined) {
+        const formattedBalance = formatEther(balance);
+        setHouseBalance(formattedBalance);
+      } else {
+        console.error("No balance returned from contract.");
+      }
     } catch (error) {
       console.error("Failed to fetch house balance:", error);
     }
   };
 
-  const handlePlay = async (event) => {
+  const handlePlay = async (event: FormEvent) => {
     event.preventDefault();
 
     if (!client || !address) {
@@ -84,11 +85,11 @@ export default function Home() {
     try {
       const { request } = await publicClient.simulateContract({
         account: address,
-        address: "0x8fa509ab0087755fdd5fb49df1d5fad95f9d9eb7", 
+        address: CONTRACT_ADDRESS, 
         abi: ABI,
         functionName: "play",
-        args: [parseInt(prediction, 10)], // Ensure prediction is an integer
-        value: parseEther(betAmount), // Convert bet amount to wei
+        args: [parseInt(prediction, 10)], 
+        value: parseEther(betAmount), 
       });
 
       if (!request) {
@@ -96,28 +97,21 @@ export default function Home() {
         return;
       }
 
-      console.log("Simulation successful. Request object:", request);
-
       const hash = await client.writeContract(request);
       setTransactionHash(hash);
-      console.log(`Transaction sent: ${hash}`);
 
-      const receipt = await publicClient.waitForTransactionReceipt({hash});
-      console.log(`Transaction confirmed: ${receipt.transactionHash}`);
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-      // After confirmation, fetch and handle events
       await fetchGameEvents(receipt.blockNumber, receipt.transactionHash);
     } catch (error) {
       console.error("Simulation or transaction failed:", error);
     }
   };
 
-  const fetchGameEvents = async (blockNumber, transactionHash) => {
+  const fetchGameEvents = async (blockNumber: bigint, transactionHash: string) => {
     try {
-      // Fetch the logs for the GamePlayed event
       const logs = await publicClient.getContractEvents({
-        client: publicClient,
-        address: "0x8fa509ab0087755fdd5fb49df1d5fad95f9d9eb7", // Your contract address
+        address: CONTRACT_ADDRESS, 
         abi: ABI,
         eventName: "GamePlayed",
         fromBlock: blockNumber,
@@ -126,16 +120,13 @@ export default function Home() {
 
       if (logs.length > 0) {
         const event = logs[0];
-        console.log("GamePlayed event:", event);
         const { args } = event;
         const { player, amount, prediction, houseNumber } = args;
         setGameResult(`Game Played: Player ${player} predicted ${prediction}, House Number: ${houseNumber}, Bet Amount: ${amount}`);
-      }
+      } 
 
-      // Fetch the logs for the GameWon event
       const wonLogs = await publicClient.getContractEvents({
-        client: publicClient,
-        address: "0x8fa509ab0087755fdd5fb49df1d5fad95f9d9eb7", // Your contract address
+        address: CONTRACT_ADDRESS, 
         abi: ABI,
         eventName: "GameWon",
         fromBlock: blockNumber,
@@ -146,10 +137,8 @@ export default function Home() {
         setGameResult(`You won the game!`);
       }
 
-      // Fetch the logs for the GameLost event
       const lostLogs = await publicClient.getContractEvents({
-        client: publicClient,
-        address: "0x8fa509ab0087755fdd5fb49df1d5fad95f9d9eb7", // Your contract address
+        address: CONTRACT_ADDRESS, 
         abi: ABI,
         eventName: "GameLost",
         fromBlock: blockNumber,
@@ -171,11 +160,8 @@ export default function Home() {
   }, [client, address]);
 
   return (
-    <main
-      className={`flex min-h-screen flex-col items-center p-24`}
-    >
-
-      Hello, World!
+    <main className="flex min-h-screen flex-col items-center p-24">
+      <h1>Hello, World!</h1>
       {!connected ? (
         <button
           onClick={connectToMetaMask}
