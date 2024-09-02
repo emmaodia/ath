@@ -15,6 +15,12 @@ const publicClient = createPublicClient({
   transport: http(),
 });
 
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 export default function Home() {
   const [client, setClient] = useState(null);
   const [address, setAddress] = useState(null);
@@ -27,15 +33,15 @@ export default function Home() {
   
   // Function to connect to MetaMask and create a wallet client
   const connectToMetaMask = async () => {
-    if (typeof window !== "undefined" && typeof window.ethereum !== "undefined") {
+    if (typeof window !== "undefined" && window.ethereum !== undefined) {
       try {
         // Request account access
-        await (window.ethereum as any).request({ method: "eth_requestAccounts" });
+        await window.ethereum.request({ method: "eth_requestAccounts" });
 
         // Create a wallet client using MetaMask
         const walletClient = createWalletClient({
           chain: lineaSepolia,
-          transport: custom(window.ethereum),
+          transport: custom(window.ethereum as any),
         });
 
         // Get the connected address
